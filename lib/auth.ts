@@ -1,10 +1,6 @@
 import bcrypt from 'bcrypt'
-import jwt from 'jsonwebtoken'
 import { v4 as uuidv4 } from 'uuid'
 import { supabaseAdmin } from './supabase'
-
-// JWT secret key
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key'
 
 // Salt rounds for bcrypt
 const SALT_ROUNDS = 10
@@ -17,20 +13,6 @@ export const hashPassword = async (password: string): Promise<string> => {
 // Compare password with hash
 export const comparePasswords = async (password: string, hash: string): Promise<boolean> => {
   return bcrypt.compare(password, hash)
-}
-
-// Generate JWT token
-export const generateToken = (userId: string): string => {
-  return jwt.sign({ sub: userId }, JWT_SECRET, { expiresIn: '7d' })
-}
-
-// Verify JWT token
-export const verifyToken = (token: string): any => {
-  try {
-    return jwt.verify(token, JWT_SECRET)
-  } catch (error) {
-    return null
-  }
 }
 
 // Create session in database

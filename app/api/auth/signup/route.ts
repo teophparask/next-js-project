@@ -63,12 +63,21 @@ export async function POST(request: Request) {
     // Create username from email
     const username = email.split('@')[0] + '_' + Math.floor(Math.random() * 1000)
 
-    // Get IP address from request headers
-    const forwarded = request.headers.get('x-forwarded-for')
-    const ip = forwarded ? forwarded.split(',')[0] : 'unknown'
-    
-    // Get user agent
-    const userAgent = request.headers.get('user-agent') || 'unknown'
+    // First, get the default role ID
+    const { data: defaultRole } = await supabaseAdmin
+      .from('roles')
+      .select('id')
+      .eq('name', 'user')
+      .maybeSingle()
+
+    if (!defaultRole) {
+      return NextResponse.json(
+        { error: 'Default role not found. Please contact administrator.' },
+        { status: 500 }
+      )
+    }
+
+    const defaultRoleId = defaultRole.id
 
     // Create user with is_verified set to false
     const { data: newUser, error: createError } = await supabaseAdmin
@@ -79,7 +88,7 @@ export async function POST(request: Request) {
         first_name: firstName,
         last_name: lastName,
         username: username,
-        is_verified: false, // User starts unverified
+        is_verified: false,
         is_active: true
       })
       .select('id, email, first_name, last_name, username, avatar_url')
@@ -98,12 +107,11 @@ export async function POST(request: Request) {
       .from('user_roles')
       .insert({
         user_id: newUser.id,
-        role_id: '00000000-0000-0000-0000-000000000001' // Replace with your default role ID
+        role_id: defaultRoleId
       })
 
     if (roleError) {
       console.error('Error assigning role:', roleError)
-      // Not critical, we can continue with user creation
     }
 
     // Create verification token for email verification
@@ -120,8 +128,27 @@ export async function POST(request: Request) {
         expires_at: expiresAt.toISOString()
       })
 
-    // Send verification email
-    await sendVerificationEmail(email, verificationToken)
+    // In development mode, don't try to send an email, just provide the verification link
+    let verificationUrl = null
+    let emailSent = false
+
+    try {
+      // Send verification email
+      const emailResult = await sendVerificationEmail(email, verificationToken)
+      emailSent = emailResult.success
+      
+      // In development, we may still have the preview URL
+      if (emailResult.previewUrl) {
+        verificationUrl = emailResult.previewUrl
+      }
+    } catch (error) {
+      console.error('Error sending verification email:', error)
+      
+      // In development, create a direct verification URL
+      if (process.env.NODE_ENV !== 'production') {
+        verificationUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/verify-email?token=${verificationToken}`
+      }
+    }
 
     // Return success response
     return NextResponse.json({
@@ -131,7 +158,10 @@ export async function POST(request: Request) {
         roles: ['user'],
         needsVerification: true
       },
-      message: 'Account created successfully! Please check your email to verify your account.'
+      message: emailSent 
+        ? 'Account created successfully! Please check your email to verify your account.'
+        : 'Account created! Verification email could not be sent.',
+      ...(verificationUrl && { verificationUrl })
     })
   } catch (error) {
     console.error('Signup error:', error)
