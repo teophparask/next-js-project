@@ -18,24 +18,40 @@ export default function LoginForm() {
     setError('')
     setLoading(true)
 
+    // Simple validation
+    if (!email || !password || (!isLogin && !name)) {
+      setError('Please fill in all fields')
+      setLoading(false)
+      return
+    }
+
     try {
       if (isLogin) {
-        // Handle login logic here
-        // This is a placeholder - implement your actual authentication
+        // For login, just redirect to dashboard since fields are not empty
         console.log('Logging in with:', { email, password })
+        
+        // In a real app, you would authenticate here
         // await loginUser(email, password)
-        // router.push('/dashboard')
+        
+        // Simple delay to simulate authentication process
+        setTimeout(() => {
+          router.push('/dashboard')
+        }, 1000)
       } else {
-        // Handle signup logic here
-        // This is a placeholder - implement your actual user creation
+        // For signup, create account then redirect
         console.log('Creating account with:', { name, email, password })
+        
+        // In a real app, you would create the user here
         // await createUser(name, email, password)
-        // router.push('/dashboard')
+        
+        // Simple delay to simulate account creation
+        setTimeout(() => {
+          router.push('/dashboard')
+        }, 1000)
       }
     } catch (err) {
       setError('Authentication failed. Please try again.')
       console.error(err)
-    } finally {
       setLoading(false)
     }
   }
