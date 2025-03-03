@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
-import { hashPassword, createSession } from '@/lib/auth'
+import { hashPassword } from '@/lib/auth'
 import { v4 as uuidv4 } from 'uuid'
+import { sendVerificationEmail } from '@/lib/email'
 
 export async function POST(request: Request) {
   try {
@@ -69,7 +70,7 @@ export async function POST(request: Request) {
     // Get user agent
     const userAgent = request.headers.get('user-agent') || 'unknown'
 
-    // Create user
+    // Create user with is_verified set to false
     const { data: newUser, error: createError } = await supabaseAdmin
       .from('users')
       .insert({
@@ -78,7 +79,7 @@ export async function POST(request: Request) {
         first_name: firstName,
         last_name: lastName,
         username: username,
-        is_verified: true, // For simplicity, we're setting this to true. In a real app, you'd want email verification
+        is_verified: false, // User starts unverified
         is_active: true
       })
       .select('id, email, first_name, last_name, username, avatar_url')
@@ -105,7 +106,7 @@ export async function POST(request: Request) {
       // Not critical, we can continue with user creation
     }
 
-    // Create verification token for email verification (not used in this simplified flow)
+    // Create verification token for email verification
     const verificationToken = uuidv4()
     const expiresAt = new Date()
     expiresAt.setHours(expiresAt.getHours() + 24) // 24 hours from now
@@ -119,19 +120,18 @@ export async function POST(request: Request) {
         expires_at: expiresAt.toISOString()
       })
 
-    // Create a session for the new user
-    const session = await createSession(newUser.id, userAgent, ip)
-
-    // In a real app, you would send a verification email here
-    // await sendVerificationEmail(user.email, verificationToken)
+    // Send verification email
+    await sendVerificationEmail(email, verificationToken)
 
     // Return success response
     return NextResponse.json({
       success: true,
       user: {
         ...newUser,
-        roles: ['user'] // Default role
-      }
+        roles: ['user'],
+        needsVerification: true
+      },
+      message: 'Account created successfully! Please check your email to verify your account.'
     })
   } catch (error) {
     console.error('Signup error:', error)

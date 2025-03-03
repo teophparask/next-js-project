@@ -13,6 +13,10 @@ export default function LoginForm() {
   const [success, setSuccess] = useState('')
   const [loading, setLoading] = useState(false)
   const [loadingState, setLoadingState] = useState('')
+  const [resendVerification, setResendVerification] = useState(false)
+  const [verificationEmail, setVerificationEmail] = useState('')
+  const [resendLoading, setResendLoading] = useState(false)
+  const [resendSuccess, setResendSuccess] = useState(false)
   const router = useRouter()
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -43,6 +47,18 @@ export default function LoginForm() {
         const data = await response.json()
 
         if (!response.ok) {
+          // Special handling for unverified users
+          if (response.status === 403 && data.error.includes('verify your email')) {
+            setError('Your email is not verified. Please check your inbox for a verification link.')
+            
+            // Add option to resend verification email
+            setResendVerification(true)
+            setVerificationEmail(email)
+            
+            setLoading(false)
+            return
+          }
+          
           throw new Error(data.error || 'Login failed')
         }
 
@@ -90,6 +106,35 @@ export default function LoginForm() {
     } finally {
       setLoading(false)
       setLoadingState('')
+    }
+  }
+
+  const handleResendVerification = async () => {
+    if (!verificationEmail) return
+    
+    setResendLoading(true)
+    try {
+      const response = await fetch('/api/auth/resend-verification', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email: verificationEmail }),
+      })
+      
+      const data = await response.json()
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to resend verification email')
+      }
+      
+      setResendSuccess(true)
+      setResendVerification(false)
+      setSuccess('Verification email resent! Please check your inbox.')
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Failed to resend verification email')
+    } finally {
+      setResendLoading(false)
     }
   }
 
